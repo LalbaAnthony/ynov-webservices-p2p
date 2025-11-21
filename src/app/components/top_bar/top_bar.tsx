@@ -32,7 +32,7 @@ export default function ComponentTemplate({
         renderCell={(r, c) => {
           if (r === 0 && c === 0) {
             return (
-              <p>Funny Phone</p>
+              <h1>Funny Phone</h1>
             );
           }
           if (r === 0 && c === 1) {

@@ -5,6 +5,7 @@ import { useState } from "react";
 type ComponentTemplateProps = {
   className?: string;
   id?: string;
+  type?: boolean;
 };
 
 // Copie/colle ce composant pour démarrer un nouveau bloc UI (card + actions).

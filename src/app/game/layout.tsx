@@ -1,13 +1,16 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useRef, useState } from "react";
+import TopBar from "../components/top_bar/top_bar";
 
 export const TimerContext = createContext<{
   time: number;
   start: () => void;
   stop: () => void;
   reset: () => void;
+  playersCount: number;
+  setPlayersCount: (n: number) => void;
 } | null>(null);
 
 export default function GameLayout({
@@ -20,6 +23,7 @@ export default function GameLayout({
 
   const [time, setTime] = useState(0); // time in seconds
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [playersCount, setPlayersCount] = useState(0);
 
   const start = () => {
     if (intervalRef.current) return; // already running
@@ -41,12 +45,9 @@ export default function GameLayout({
   };
 
   return (
-    <TimerContext.Provider value={{ time, start, stop, reset }}>
+    <TimerContext.Provider value={{ time, start, stop, reset, playersCount, setPlayersCount }}>
       <header className="p-4 border-b flex flex-row gap-2 justify-between items-center">
-        <h1>Funny Phone</h1>
-        {code && <span className="font-mono">Room ID:  {code}</span>}
-
-        {time && (time > 0) && <span className="font-mono">Time: {time}s</span>}
+        <TopBar roomId={code} nbPlayers={playersCount} nbSeconds={time} />
       </header>
 
       <main>{children}</main>

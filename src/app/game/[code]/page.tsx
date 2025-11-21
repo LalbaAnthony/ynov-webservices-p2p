@@ -1,9 +1,10 @@
 "use client";
 
 import { usePeer } from "@/hooks/usePeer";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useContext } from "react";
 import { useParams } from "next/navigation";
 import TopBar from "../../components/top_bar/top_bar";
+import { TimerContext } from "../layout";
 
 // --- TYPES DU JEU ---
 
@@ -43,6 +44,7 @@ export default function RoomPageClient() {
   const code = params?.code as string | undefined;
 
   const { peerId, peer } = usePeer();
+  const timerCtx = useContext(TimerContext);
 
   // Etat de la connexion/room
   const [isHost, setIsHost] = useState(false);
@@ -84,6 +86,11 @@ export default function RoomPageClient() {
   useEffect(() => {
     orderRef.current = gameOrder;
   }, [gameOrder]);
+
+  // Remonte le nombre de joueurs au layout (TopBar)
+  useEffect(() => {
+    timerCtx?.setPlayersCount(players.length);
+  }, [players, timerCtx]);
 
   // Nettoyage PeerJS
   useEffect(() => {
@@ -368,7 +375,6 @@ export default function RoomPageClient() {
   if (!gameStarted)
     return (
       <div className="p-10 space-y-6">
-        <TopBar roomId={code} nbPlayers={players.length} nbSeconds={0} />
         <h1 className="text-3xl font-bold">Room {code}</h1>
 
         <h2 className="text-xl mt-6">Joueurs :</h2>
