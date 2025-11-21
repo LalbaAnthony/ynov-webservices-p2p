@@ -449,10 +449,10 @@ export default function RoomPageClient() {
     )
   );
 
-  // Auto-affiche la waitroom dès qu'on a joué et qu'on n'est plus actif
+  // Auto-affiche la waitroom dès qu'on a joué
   useEffect(() => {
-    setShowWaitroom(hasPlayed && !isActive);
-  }, [hasPlayed, isActive]);
+    setShowWaitroom(hasPlayed);
+  }, [hasPlayed]);
 
   // ------------------ RENDER ------------------
 
@@ -610,7 +610,7 @@ export default function RoomPageClient() {
         </div>
       )}
 
-      {hasPlayed && !isActive && showWaitroom && (
+      {hasPlayed && showWaitroom && (
         <Waitroom
           id="waitroom_overlay"
           className=""
