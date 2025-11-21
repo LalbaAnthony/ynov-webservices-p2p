@@ -45,7 +45,7 @@ export default function RoomPageClient() {
   const [isHost, setIsHost] = useState(false);
   const [hostPeerId, setHostPeerId] = useState<string | null>(null);
   const [players, setPlayers] = useState<string[]>([]);
-  
+
   // État de la partie
   const [gameStarted, setGameStarted] = useState(false);
   const [gameOrder, setGameOrder] = useState<string[]>([]);
@@ -70,7 +70,6 @@ export default function RoomPageClient() {
       }
     };
   }, [peer]); // Se déclenche seulement si 'peer' change.
-
 
   // ------------------ FONCTIONS DE COMMUNICATION/UTILITAIRES ------------------
 
@@ -125,19 +124,19 @@ export default function RoomPageClient() {
           if (!isHost) return;
 
           const turn = msg.turn;
-          
+
           setGameHistory((prev) => [...prev, turn]);
           setLastInput(turn.content);
-          
+
           let allPlayed = false;
-          
+
           setPlayersState((prev) => {
             const newState = prev.map((ps) =>
               ps.player === turn.player
                 ? { ...ps, as_played: true, response: turn.content }
                 : ps
             );
-            
+
             // Vérification de la fin de partie
             allPlayed = newState.every((p) => p.as_played);
             return newState;
@@ -207,51 +206,48 @@ export default function RoomPageClient() {
     join();
   }, [code, peerId]);
 
-
   // ------------------ PEER CONNECTION (Gestion des connexions P2P) ------------------
   useEffect(() => {
-  if (!peer || !peerId) return;
-  if (!isHost && !hostPeerId) return; // pour les joueurs
+    if (!peer || !peerId) return;
+    if (!isHost && !hostPeerId) return; // pour les joueurs
 
-  // --- Hôte ---
-  if (isHost) {
-    const handleConn = (conn: any) => {
-      conn.on("data", (data) => handleMessage(conn.peer, data as Message));
-      addPlayer(conn.peer);
+    // --- Hôte ---
+    if (isHost) {
+      const handleConn = (conn: any) => {
+        conn.on("data", (data) => handleMessage(conn.peer, data as Message));
+        addPlayer(conn.peer);
 
-      conn.on("open", () => {
-        conn.send({
-          type: "WELCOME",
-          players,
-          history: gameHistory,
-          lastInput,
+        conn.on("open", () => {
+          conn.send({
+            type: "WELCOME",
+            players,
+            history: gameHistory,
+            lastInput,
+          });
+          broadcast({ type: "PLAYER_JOINED", peerId: conn.peer }, conn.peer);
         });
-        broadcast({ type: "PLAYER_JOINED", peerId: conn.peer }, conn.peer);
-      });
-    };
+      };
 
-    peer.on("connection", handleConn);
+      peer.on("connection", handleConn);
 
-    // Cleanup : enlever l'écouteur quand le composant est démonté
-    return () => {
-      peer.off("connection", handleConn);
-    };
-  }
-
-  // --- Joueur ---
-  if (!isHost) {
-    // Vérifie si on n'a pas déjà une connexion
-    if (!peer.connections[hostPeerId!]) {
-      const conn = peer.connect(hostPeerId!);
-      conn.on("open", () => {
-        conn.send({ type: "PLAYER_JOINED", peerId });
-      });
-      conn.on("data", (data) => handleMessage(conn.peer, data as Message));
+      // Cleanup : enlever l'écouteur quand le composant est démonté
+      return () => {
+        peer.off("connection", handleConn);
+      };
     }
-  }
-}, [peer, peerId, isHost, hostPeerId, addPlayer, handleMessage, broadcast]);
 
-
+    // --- Joueur ---
+    if (!isHost) {
+      // Vérifie si on n'a pas déjà une connexion
+      if (!peer.connections[hostPeerId!]) {
+        const conn = peer.connect(hostPeerId!);
+        conn.on("open", () => {
+          conn.send({ type: "PLAYER_JOINED", peerId });
+        });
+        conn.on("data", (data) => handleMessage(conn.peer, data as Message));
+      }
+    }
+  }, [peer, peerId, isHost, hostPeerId, addPlayer, handleMessage, broadcast]);
 
   // ------------------ HOST START GAME ------------------
   function startGame() {
@@ -321,7 +317,6 @@ export default function RoomPageClient() {
         activePeerId: nextPeerId,
         lastInput: turn.content,
       });
-
     } else {
       // Joueur non-hôte : Envoie son tour au host
       const conn = peer?.connections[hostPeerId!][0];
@@ -376,18 +371,22 @@ export default function RoomPageClient() {
 
       <h2 className="text-xl mt-6">Ordre du jeu :</h2>
       <ul className="mt-2 text-sm">
-          {gameOrder.map((p, index) => (
-            <li key={p} className={p === activePeerId ? "font-bold text-blue-600" : ""}>
-              {index + 1}. {p} {p === activePeerId && "(ACTIF)"}
-            </li>
-          ))}
-        </ul>
+        {gameOrder.map((p, index) => (
+          <li
+            key={p}
+            className={p === activePeerId ? "font-bold text-blue-600" : ""}
+          >
+            {index + 1}. {p} {p === activePeerId && "(ACTIF)"}
+          </li>
+        ))}
+      </ul>
 
       <h2 className="text-xl mt-6">Historique des tours :</h2>
       <ul className="mt-2">
         {gameHistory.map((t, i) => (
           <li key={i} className="text-sm">
-            **{t.player}** ({t.type}): {t.type === "text" ? t.content : "[dessin]"}
+            **{t.player}** ({t.type}):{" "}
+            {t.type === "text" ? t.content : "[dessin]"}
           </li>
         ))}
       </ul>
@@ -402,7 +401,7 @@ export default function RoomPageClient() {
       {!gameEnded && (
         <div className="mt-8 p-4 border rounded-lg bg-gray-50">
           <h3 className="text-xl font-semibold mb-3">Votre Tour</h3>
-          
+
           {isActive && !hasPlayed ? (
             <div>
               <p className="mb-2 italic text-gray-700">
