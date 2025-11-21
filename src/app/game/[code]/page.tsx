@@ -316,7 +316,7 @@ export default function RoomPageClient() {
       const data = await res.json();
 
       if (data.error) {
-        alert("Impossible de rejoindre la room : " + data.error);
+        alert("Impossible de rejoindre la partie : " + data.error);
         return;
       }
 
@@ -556,7 +556,7 @@ export default function RoomPageClient() {
 
   // ------------------ RENDER ------------------
 
-  if (!code) return <div>Chargement de la room...</div>;
+  if (!code) return <div>Chargement de la partie...</div>;
 
   if (showWaitroom) {
     return (

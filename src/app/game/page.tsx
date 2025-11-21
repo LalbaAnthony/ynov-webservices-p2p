@@ -41,7 +41,7 @@ export default function Game() {
           <form className="flex flex-col gap-3 sm:flex-row" onSubmit={joinRoom}>
             <input
               type="text"
-              placeholder="Code de la room"
+              placeholder="Code de la partie"
               className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
@@ -66,7 +66,7 @@ export default function Game() {
             onClick={createRoom}
             className="w-fit rounded-lg bg-blue-500 px-4 py-2 text-white shadow transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-blue-400"
           >
-            {loading ? "Creation..." : "Creer la room"}
+            {loading ? "Creation..." : "Creer la partie"}
           </button>
         </div>
       </div>
