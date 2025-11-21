@@ -8,6 +8,7 @@ type ComponentTemplateProps = {
   rows?: number;
   cols?: number;
   renderCell?: (row: number, col: number) => React.ReactNode;
+  columnTemplate?: string; // ex: "60% 35%" pour définir des largeurs personnalisées
 };
 
 export default function ComponentTemplate({
@@ -16,6 +17,7 @@ export default function ComponentTemplate({
   rows = 3,
   cols = 3,
   renderCell,
+  columnTemplate,
 }: ComponentTemplateProps) {
   const [active, setActive] = useState(false);
 
@@ -31,15 +33,21 @@ export default function ComponentTemplate({
     <div id={id || undefined} className={`${base} ${className}`.trim()}>
       <div
         className="grid gap-2"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        style={{
+          gridTemplateColumns: columnTemplate
+            ? columnTemplate
+            : `repeat(${cols}, minmax(0, 1fr))`,
+        }}
       >
         {grid.map((row) =>
           row.map((cell) => (
             <div
               key={`${cell.r}-${cell.c}`}
-              className="flex items-center justify-center rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-3 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-100"
+              className="flex h-full w-full flex-col items-stretch justify-stretch rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-3 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-100"
             >
-              {renderCell ? renderCell(cell.r, cell.c) : `(${cell.r + 1}, ${cell.c + 1})`}
+              <div className="h-full w-full">
+                {renderCell ? renderCell(cell.r, cell.c) : `(${cell.r + 1}, ${cell.c + 1})`}
+              </div>
             </div>
           ))
         )}
