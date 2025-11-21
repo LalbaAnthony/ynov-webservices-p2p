@@ -210,43 +210,47 @@ export default function RoomPageClient() {
 
   // ------------------ PEER CONNECTION (Gestion des connexions P2P) ------------------
   useEffect(() => {
-    if (!peer || !peerId) return;
+  if (!peer || !peerId) return;
+  if (!isHost && !hostPeerId) return; // pour les joueurs
 
-    if (isHost) {
-      // Hôte : Écoute les connexions entrantes
-      peer.on("connection", (conn) => {
-        conn.on("data", (data) => handleMessage(conn.peer, data as Message));
-        
-        addPlayer(conn.peer);
-
-        conn.on("open", () => {
-             // Envoi de l'état actuel de la room au nouveau joueur
-            conn.send({
-              type: "WELCOME",
-              players,
-              history: gameHistory,
-              lastInput,
-            });
-            // Annoncer la nouvelle connexion aux autres joueurs
-            broadcast({ type: "PLAYER_JOINED", peerId: conn.peer }, conn.peer);
-        });
-
-      });
-    } else if (hostPeerId) {
-      // Joueur : Se connecte à l'hôte
-      const conn = peer.connect(hostPeerId);
+  // --- Hôte ---
+  if (isHost) {
+    const handleConn = (conn: any) => {
+      conn.on("data", (data) => handleMessage(conn.peer, data as Message));
+      addPlayer(conn.peer);
 
       conn.on("open", () => {
-        // Envoi du message pour signaler la connexion après l'établissement du lien
+        conn.send({
+          type: "WELCOME",
+          players,
+          history: gameHistory,
+          lastInput,
+        });
+        broadcast({ type: "PLAYER_JOINED", peerId: conn.peer }, conn.peer);
+      });
+    };
+
+    peer.on("connection", handleConn);
+
+    // Cleanup : enlever l'écouteur quand le composant est démonté
+    return () => {
+      peer.off("connection", handleConn);
+    };
+  }
+
+  // --- Joueur ---
+  if (!isHost) {
+    // Vérifie si on n'a pas déjà une connexion
+    if (!peer.connections[hostPeerId!]) {
+      const conn = peer.connect(hostPeerId!);
+      conn.on("open", () => {
         conn.send({ type: "PLAYER_JOINED", peerId });
       });
-
       conn.on("data", (data) => handleMessage(conn.peer, data as Message));
     }
-    
-    // NOTE : La fonction de nettoyage a été déplacée dans un useEffect dédié.
-    
-  }, [peer, isHost, hostPeerId, peerId, players, gameHistory, lastInput, addPlayer, handleMessage, broadcast]);
+  }
+}, [peer, peerId, isHost, hostPeerId, addPlayer, handleMessage, broadcast]);
+
 
 
   // ------------------ HOST START GAME ------------------
