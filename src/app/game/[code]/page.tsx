@@ -1,7 +1,7 @@
 "use client";
 
 import { usePeer } from "@/hooks/usePeer";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 
 // --- TYPES DU JEU ---
@@ -12,6 +12,8 @@ type Message =
       players: string[];
       history: GameTurn[];
       lastInput: string | null;
+      order?: string[];
+      activePeerId?: string;
     }
   | { type: "PLAYER_JOINED"; peerId: string }
   | { type: "START_GAME"; order: string[] }
@@ -41,12 +43,12 @@ export default function RoomPageClient() {
 
   const { peerId, peer } = usePeer();
 
-  // État de la connexion/room
+  // Etat de la connexion/room
   const [isHost, setIsHost] = useState(false);
   const [hostPeerId, setHostPeerId] = useState<string | null>(null);
   const [players, setPlayers] = useState<string[]>([]);
 
-  // État de la partie
+  // Etat de la partie
   const [gameStarted, setGameStarted] = useState(false);
   const [gameOrder, setGameOrder] = useState<string[]>([]);
   const [activePeerId, setActivePeerId] = useState<string | null>(null);
@@ -54,24 +56,44 @@ export default function RoomPageClient() {
   const [lastInput, setLastInput] = useState<string | null>(null);
   const [gameEnded, setGameEnded] = useState(false);
 
-  // Entrée utilisateur
+  // Entree utilisateur
   const [currentInput, setCurrentInput] = useState("");
 
-  // ------------------ HOST MINI DB ------------------
+  // Host mini DB
   const [playersState, setPlayersState] = useState<PlayerState[]>([]);
 
-  // ------------------ LOGIQUE DE NETTOYAGE PEERJS (Fix du problème de reconnexion) ------------------
-  // Gère uniquement la destruction de l'objet Peer lorsque le composant est démonté
+  // Refs pour éviter les valeurs obsolètes dans les handlers/broadcast
+  const playersRef = useRef<string[]>([]);
+  const historyRef = useRef<GameTurn[]>([]);
+  const lastInputRef = useRef<string | null>(null);
+  const orderRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    playersRef.current = players;
+  }, [players]);
+
+  useEffect(() => {
+    historyRef.current = gameHistory;
+  }, [gameHistory]);
+
+  useEffect(() => {
+    lastInputRef.current = lastInput;
+  }, [lastInput]);
+
+  useEffect(() => {
+    orderRef.current = gameOrder;
+  }, [gameOrder]);
+
+  // Nettoyage PeerJS
   useEffect(() => {
     return () => {
       if (peer && !peer.destroyed) {
-        console.log("Nettoyage : Destruction de l'objet Peer.");
         peer.destroy();
       }
     };
-  }, [peer]); // Se déclenche seulement si 'peer' change.
+  }, [peer]);
 
-  // ------------------ FONCTIONS DE COMMUNICATION/UTILITAIRES ------------------
+  // ------------------ COMMUNICATION/UTILITAIRES ------------------
 
   const broadcast = useCallback(
     (msg: Message, excludePeer?: string) => {
@@ -106,6 +128,9 @@ export default function RoomPageClient() {
           setPlayers(msg.players);
           setGameHistory(msg.history);
           setLastInput(msg.lastInput);
+          if (msg.order) setGameOrder(msg.order);
+          if (msg.activePeerId) setActivePeerId(msg.activePeerId);
+          if (msg.order) setGameStarted(true);
           break;
         case "PLAYER_JOINED":
           addPlayer(msg.peerId);
@@ -120,7 +145,7 @@ export default function RoomPageClient() {
           setLastInput(msg.lastInput);
           break;
         case "PLAYER_FINISHED":
-          // Logique exécutée uniquement par l'hôte quand un non-hôte a joué
+          // Hote uniquement
           if (!isHost) return;
 
           const turn = msg.turn;
@@ -137,15 +162,18 @@ export default function RoomPageClient() {
                 : ps
             );
 
-            // Vérification de la fin de partie
             allPlayed = newState.every((p) => p.as_played);
             return newState;
           });
 
           // Passage au joueur suivant
-          const currentIndex = gameOrder.indexOf(turn.player);
-          const nextIndex = (currentIndex + 1) % gameOrder.length;
-          const nextPeerId = gameOrder[nextIndex];
+          const currentIndex = orderRef.current.indexOf(turn.player);
+          if (currentIndex === -1) {
+            console.warn("PLAYER_FINISHED inconnu, peer ignore :", turn.player);
+            return;
+          }
+          const nextIndex = (currentIndex + 1) % orderRef.current.length;
+          const nextPeerId = orderRef.current[nextIndex];
 
           setActivePeerId(nextPeerId);
 
@@ -168,7 +196,7 @@ export default function RoomPageClient() {
     [isHost, addPlayer, gameOrder, broadcast]
   );
 
-  // ------------------ LOGIQUE DE JOIN ROOM ------------------
+  // ------------------ JOIN ROOM ------------------
   useEffect(() => {
     if (!code || !peerId) return;
 
@@ -206,12 +234,12 @@ export default function RoomPageClient() {
     join();
   }, [code, peerId]);
 
-  // ------------------ PEER CONNECTION (Gestion des connexions P2P) ------------------
+  // ------------------ PEER CONNECTION ------------------
   useEffect(() => {
     if (!peer || !peerId) return;
     if (!isHost && !hostPeerId) return; // pour les joueurs
 
-    // --- Hôte ---
+    // Hote
     if (isHost) {
       const handleConn = (conn: any) => {
         conn.on("data", (data) => handleMessage(conn.peer, data as Message));
@@ -220,9 +248,11 @@ export default function RoomPageClient() {
         conn.on("open", () => {
           conn.send({
             type: "WELCOME",
-            players,
-            history: gameHistory,
-            lastInput,
+            players: playersRef.current,
+            history: historyRef.current,
+            lastInput: lastInputRef.current,
+            order: orderRef.current,
+            activePeerId,
           });
           broadcast({ type: "PLAYER_JOINED", peerId: conn.peer }, conn.peer);
         });
@@ -230,15 +260,14 @@ export default function RoomPageClient() {
 
       peer.on("connection", handleConn);
 
-      // Cleanup : enlever l'écouteur quand le composant est démonté
+      // Cleanup
       return () => {
         peer.off("connection", handleConn);
       };
     }
 
-    // --- Joueur ---
+    // Joueur
     if (!isHost) {
-      // Vérifie si on n'a pas déjà une connexion
       if (!peer.connections[hostPeerId!]) {
         const conn = peer.connect(hostPeerId!);
         conn.on("open", () => {
@@ -247,7 +276,7 @@ export default function RoomPageClient() {
         conn.on("data", (data) => handleMessage(conn.peer, data as Message));
       }
     }
-  }, [peer, peerId, isHost, hostPeerId, addPlayer, handleMessage, broadcast]);
+  }, [peer, peerId, isHost, hostPeerId, addPlayer, handleMessage, broadcast, gameOrder, activePeerId]);
 
   // ------------------ HOST START GAME ------------------
   function startGame() {
@@ -284,7 +313,6 @@ export default function RoomPageClient() {
     setCurrentInput("");
 
     if (isHost) {
-      // Hôte : Gère localement et broadcast
       let allPlayed = false;
 
       setPlayersState((prev) => {
@@ -301,9 +329,13 @@ export default function RoomPageClient() {
       setGameHistory((prev) => [...prev, turn]);
       setLastInput(turn.content);
 
-      const currentIndex = gameOrder.indexOf(activePeerId);
-      const nextIndex = (currentIndex + 1) % gameOrder.length;
-      const nextPeerId = gameOrder[nextIndex];
+      const currentIndex = orderRef.current.indexOf(activePeerId);
+      if (currentIndex === -1) {
+        console.warn("submitTurn: activePeerId introuvable", activePeerId);
+        return;
+      }
+      const nextIndex = (currentIndex + 1) % orderRef.current.length;
+      const nextPeerId = orderRef.current[nextIndex];
       setActivePeerId(nextPeerId);
 
       if (allPlayed) {
@@ -318,10 +350,12 @@ export default function RoomPageClient() {
         lastInput: turn.content,
       });
     } else {
-      // Joueur non-hôte : Envoie son tour au host
-      const conn = peer?.connections[hostPeerId!][0];
-      if (conn) {
-        conn.send({ type: "PLAYER_FINISHED", turn });
+      const existing = peer?.connections[hostPeerId!]?.find((c) => c.open) ?? null;
+      if (existing) {
+        existing.send({ type: "PLAYER_FINISHED", turn });
+      } else if (peer && hostPeerId) {
+        const conn = peer.connect(hostPeerId);
+        conn.on("open", () => conn.send({ type: "PLAYER_FINISHED", turn }));
       }
     }
   }
@@ -333,13 +367,13 @@ export default function RoomPageClient() {
   if (!gameStarted)
     return (
       <div className="p-10">
-        <h1 className="text-3xl font-bold">🎮 Room {code}</h1>
+        <h1 className="text-3xl font-bold">Room {code}</h1>
 
         <h2 className="text-xl mt-6">Joueurs :</h2>
         <ul className="mt-2">
           {players.map((p) => (
             <li key={p} className="text-sm">
-              {p} {p === hostPeerId && "(Hôte)"}
+              {p} {p === hostPeerId && "(Hote)"}
             </li>
           ))}
         </ul>
@@ -366,7 +400,7 @@ export default function RoomPageClient() {
   return (
     <div className="p-10">
       <h1 className="text-3xl font-bold">
-        ✍️ Room {code} {isHost && "(Host)"}
+        Room {code} {isHost && "(Host)"}
       </h1>
 
       <h2 className="text-xl mt-6">Ordre du jeu :</h2>
@@ -393,11 +427,10 @@ export default function RoomPageClient() {
 
       {gameEnded && (
         <div className="mt-6 text-2xl text-red-600 font-bold">
-          🎉 FIN DE PARTIE !
+          FIN DE PARTIE !
         </div>
       )}
 
-      {/* ZONE D'ACTION */}
       {!gameEnded && (
         <div className="mt-8 p-4 border rounded-lg bg-gray-50">
           <h3 className="text-xl font-semibold mb-3">Votre Tour</h3>
@@ -406,15 +439,15 @@ export default function RoomPageClient() {
             <div>
               <p className="mb-2 italic text-gray-700">
                 {lastInput
-                  ? `Dernière entrée : "${lastInput}"`
-                  : "C'est votre tour de commencer ! Écrivez une phrase."}
+                  ? `Derniere entree : "${lastInput}"`
+                  : "C'est votre tour de commencer ! Ecrivez une phrase."}
               </p>
               <input
                 type="text"
                 value={currentInput}
                 onChange={(e) => setCurrentInput(e.target.value)}
                 className="border px-3 py-2 w-full max-w-sm rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Entrez votre phrase/réponse"
+                placeholder="Entrez votre phrase/reponse"
                 disabled={gameEnded}
               />
               <button
@@ -428,8 +461,8 @@ export default function RoomPageClient() {
           ) : (
             <div className="text-gray-600">
               {hasPlayed
-                ? "✅ Vous avez joué dans ce tour. En attente du tour des autres joueurs..."
-                : `⏳ En attente. C'est le tour de : ${activePeerId}`}
+                ? "Vous avez deja joue dans ce tour. En attente des autres joueurs..."
+                : `En attente. C'est le tour de : ${activePeerId}`}
             </div>
           )}
         </div>
