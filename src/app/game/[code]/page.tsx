@@ -16,12 +16,20 @@ type Message =
       players: string[];
       history: GameTurn[];
       lastInput: string | null;
+      lastTurnType?: TurnType | null;
+      currentTurnType?: TurnType;
       order?: string[];
       activePeerId?: string;
     }
   | { type: "PLAYER_JOINED"; peerId: string }
   | { type: "START_GAME"; order: string[] }
-  | { type: "NEXT_TURN"; activePeerId: string; lastInput: string }
+  | {
+      type: "NEXT_TURN";
+      activePeerId: string;
+      lastInput: string;
+      lastTurnType: TurnType;
+      nextTurnType: TurnType;
+    }
   | { type: "PLAYER_FINISHED"; turn: GameTurn }
   | { type: "GAME_END" };
 
@@ -414,7 +422,6 @@ export default function RoomPageClient() {
 
   return (
     <div className="p-10 space-y-6">
-      <TopBar roomId={code} nbPlayers={players.length} nbSeconds={0} />
       <h1 className="text-3xl font-bold">
         Room {code} {isHost && "(Host)"}
       </h1>

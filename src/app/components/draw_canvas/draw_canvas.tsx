@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 type DrawCanvasProps = {
   className?: string;
@@ -16,70 +16,105 @@ type DrawCanvasProps = {
 export default function DrawCanvas({
   className = "",
   id,
-  width = 480,
-  height = 320,
+  width = 800,
+  height = 500,
   strokeColor = "#111827",
-  strokeWidth = 4,
+  strokeWidth = 3,
   backgroundColor = "#ffffff",
   onChange,
 }: DrawCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
+
+  // Init canvas (DPR aware)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.scale(dpr, dpr);
+
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+  }, [width, height, backgroundColor]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }, [backgroundColor]);
 
-  const getPos = (e: React.MouseEvent<HTMLCanvasElement, MouseEvent>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
+    const getPos = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY,
+      };
+    };
 
-  const start = (e: React.MouseEvent<HTMLCanvasElement, MouseEvent>) => {
-    setIsDrawing(true);
-    lastPos.current = getPos(e);
-  };
+    const handleDown = (e: PointerEvent) => {
+      e.preventDefault();
+      canvas.setPointerCapture(e.pointerId);
+      isDrawing.current = true;
+      lastPos.current = getPos(e);
+    };
 
-  const end = () => {
-    setIsDrawing(false);
-    lastPos.current = null;
-    const canvas = canvasRef.current;
-    if (canvas && onChange) onChange(canvas.toDataURL("image/png"));
-  };
+    const handleUp = (e: PointerEvent) => {
+      isDrawing.current = false;
+      lastPos.current = null;
+      canvas.releasePointerCapture(e.pointerId);
+      if (onChange) onChange(canvas.toDataURL("image/png"));
+    };
 
-  const move = (e: React.MouseEvent<HTMLCanvasElement, MouseEvent>) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    const current = getPos(e);
-    if (!ctx || !canvas || !lastPos.current) return;
+    const handleMove = (e: PointerEvent) => {
+      if (!isDrawing.current) return;
+      const pos = getPos(e);
+      if (!lastPos.current) {
+        lastPos.current = pos;
+        return;
+      }
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(lastPos.current.x, lastPos.current.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      lastPos.current = pos;
+    };
 
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = strokeWidth;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    canvas.addEventListener("pointerdown", handleDown);
+    canvas.addEventListener("pointerup", handleUp);
+    canvas.addEventListener("pointerleave", handleUp);
+    canvas.addEventListener("pointermove", handleMove);
 
-    ctx.beginPath();
-    ctx.moveTo(lastPos.current.x, lastPos.current.y);
-    ctx.lineTo(current.x, current.y);
-    ctx.stroke();
-
-    lastPos.current = current;
-  };
+    return () => {
+      canvas.removeEventListener("pointerdown", handleDown);
+      canvas.removeEventListener("pointerup", handleUp);
+      canvas.removeEventListener("pointerleave", handleUp);
+      canvas.removeEventListener("pointermove", handleMove);
+    };
+  }, [strokeColor, strokeWidth, onChange, width, height]);
 
   const clear = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, width, height);
     if (onChange) onChange(canvas.toDataURL("image/png"));
   };
 
@@ -88,13 +123,8 @@ export default function DrawCanvas({
       <canvas
         id={id}
         ref={canvasRef}
-        width={width}
-        height={height}
-        className="w-full rounded-lg border border-zinc-300 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
-        onMouseDown={start}
-        onMouseUp={end}
-        onMouseLeave={end}
-        onMouseMove={move}
+        className="rounded-lg border border-zinc-300 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+        style={{ touchAction: "none" }}
       />
       <div className="flex justify-end">
         <button
