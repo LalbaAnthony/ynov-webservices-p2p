@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type DrawCanvasProps = {
   className?: string;
@@ -10,6 +10,7 @@ type DrawCanvasProps = {
   strokeColor?: string;
   strokeWidth?: number;
   backgroundColor?: string;
+  paletteColors?: string[];
   onChange?: (dataUrl: string) => void;
 };
 
@@ -21,11 +22,13 @@ export default function DrawCanvas({
   strokeColor = "#111827",
   strokeWidth = 3,
   backgroundColor = "#ffffff",
+  paletteColors = ["#111827", "#2563eb", "#ef4444", "#f59e0b", "#10b981", "#a855f7"],
   onChange,
 }: DrawCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
+  const [currentColor, setCurrentColor] = useState(strokeColor);
 
   // Init canvas (DPR aware)
   useEffect(() => {
@@ -81,7 +84,7 @@ export default function DrawCanvas({
         lastPos.current = pos;
         return;
       }
-      ctx.strokeStyle = strokeColor;
+      ctx.strokeStyle = currentColor;
       ctx.lineWidth = strokeWidth;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -103,7 +106,7 @@ export default function DrawCanvas({
       canvas.removeEventListener("pointerleave", handleUp);
       canvas.removeEventListener("pointermove", handleMove);
     };
-  }, [strokeColor, strokeWidth, onChange, width, height]);
+  }, [currentColor, strokeWidth, onChange, width, height]);
 
   const clear = () => {
     const canvas = canvasRef.current;
@@ -125,14 +128,35 @@ export default function DrawCanvas({
         className="rounded-lg border border-zinc-300 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
         style={{ touchAction: "none" }}
       />
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={clear}
-          className="rounded-lg border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-        >
-          Effacer
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-row flex-wrap items-center gap-2">
+          {paletteColors.map((color) => (
+            <button
+              key={color}
+              type="button"
+              aria-label={`Choisir la couleur ${color}`}
+              onClick={() => setCurrentColor(color)}
+              className={`h-7 w-7 rounded-full border-2 transition ${
+                currentColor === color ? "border-zinc-900 shadow-sm" : "border-transparent"
+              }`}
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <div
+            className="h-6 w-6 rounded-full border border-zinc-300 shadow-sm"
+            style={{ backgroundColor: currentColor }}
+            aria-label="Couleur actuelle"
+          />
+          <button
+            type="button"
+            onClick={clear}
+            className="rounded-lg border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            Effacer
+          </button>
+        </div>
       </div>
     </div>
   );
