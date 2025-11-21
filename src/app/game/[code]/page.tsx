@@ -3,6 +3,7 @@
 import { usePeer } from "@/hooks/usePeer";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
+import TopBar from "../../components/top_bar/top_bar";
 
 // --- TYPES DU JEU ---
 
@@ -366,7 +367,8 @@ export default function RoomPageClient() {
 
   if (!gameStarted)
     return (
-      <div className="p-10">
+      <div className="p-10 space-y-6">
+        <TopBar roomId={code} nbPlayers={players.length} nbSeconds={0} />
         <h1 className="text-3xl font-bold">Room {code}</h1>
 
         <h2 className="text-xl mt-6">Joueurs :</h2>
@@ -398,7 +400,8 @@ export default function RoomPageClient() {
   const hasPlayed = playersState.find((p) => p.player === peerId)?.as_played;
 
   return (
-    <div className="p-10">
+    <div className="p-10 space-y-6">
+      <TopBar roomId={code} nbPlayers={players.length} nbSeconds={0} />
       <h1 className="text-3xl font-bold">
         Room {code} {isHost && "(Host)"}
       </h1>

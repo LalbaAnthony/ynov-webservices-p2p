@@ -6,12 +6,18 @@ import Mattrix from "../mattrix_component/mattrix";
 type ComponentTemplateProps = {
   className?: string;
   id?: string;
+  roomId?: string;
+  nbPlayers?: number;
+  nbSeconds?: number;
 };
 
 // Copie/colle ce composant pour démarrer un nouveau bloc UI (card + actions).
 export default function ComponentTemplate({
   className = "",
   id = "",
+  roomId = "",
+  nbPlayers = 1,
+  nbSeconds = 20,
 }: ComponentTemplateProps) {
   const [active, setActive] = useState(false);
 
@@ -31,17 +37,17 @@ export default function ComponentTemplate({
           }
           if (r === 0 && c === 1) {
             return (
-              <p>Room ID:</p>
+              <p>Room ID: {roomId}</p>
             );
           }
           if (r === 0 && c === 2) {
             return (
-              <p>users</p>
+              <p>players: {nbPlayers}/9 </p>
             );
           }
           if (r === 0 && c === 3) {
             return (
-              <p>time</p>
+              <p>time : {nbSeconds}</p>
             );
           }
           return null;
