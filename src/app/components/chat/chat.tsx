@@ -21,7 +21,7 @@ export default function ComponentTemplate({
 
   return (
     <p id={id || undefined} className={`${base} ${className}`.trim()}>
-      text
+      {text}
     </p>
   );
 }
