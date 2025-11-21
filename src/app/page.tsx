@@ -11,7 +11,7 @@ export default function Home() {
         <div className="space-y-4">
           <h1 className="text-3xl font-semibold tracking-tight">hello world</h1>
           <p className="text-base text-zinc-600 dark:text-zinc-300">
-            Remplace ce texte par le contenu de ta page. Structure de base : header, main, footer.
+            Remplace ce texte par le contenu de ta page.
           </p>
         </div>
       </main>
