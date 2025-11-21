@@ -53,11 +53,10 @@ export default function DrawCanvas({
 
     const getPos = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
+      // Context is already scaled with DPR, so we want plain CSS pixel coords here.
       return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY,
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
       };
     };
 

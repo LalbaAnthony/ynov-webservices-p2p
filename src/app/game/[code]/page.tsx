@@ -21,6 +21,7 @@ type Message =
       currentTurnType?: TurnType;
       order?: string[];
       activePeerId?: string;
+      waitroomMessages?: ChatMessage[];
     }
   | { type: "PLAYER_JOINED"; peerId: string }
   | { type: "START_GAME"; order: string[] }
@@ -33,7 +34,8 @@ type Message =
       history?: GameTurn[];
     }
   | { type: "PLAYER_FINISHED"; turn: GameTurn }
-  | { type: "GAME_END" };
+  | { type: "GAME_END" }
+  | { type: "WAITROOM_MESSAGE"; message: ChatMessage };
 
 type TurnType = "text" | "drawing" | "guess";
 
@@ -42,6 +44,8 @@ type GameTurn = {
   content: string;
   player: string;
 };
+
+type ChatMessage = { id: string; text: string; sender?: string };
 
 type PlayerState = {
   player: string;
@@ -78,7 +82,7 @@ export default function RoomPageClient() {
   const [drawingData, setDrawingData] = useState<string | null>(null);
   const [showWaitroom, setShowWaitroom] = useState(false);
   const [localHasPlayed, setLocalHasPlayed] = useState(false);
-  const [waitroomMessages, setWaitroomMessages] = useState<{ id: string; text: string }[]>([]);
+  const [waitroomMessages, setWaitroomMessages] = useState<ChatMessage[]>([]);
 
   // Host mini DB
   const [playersState, setPlayersState] = useState<PlayerState[]>([]);
@@ -90,6 +94,7 @@ export default function RoomPageClient() {
   const orderRef = useRef<string[]>([]);
   const lastTurnTypeRef = useRef<TurnType | null>(null);
   const currentTurnTypeRef = useRef<TurnType>("drawing");
+  const waitroomMessagesRef = useRef<ChatMessage[]>([]);
 
   useEffect(() => {
     playersRef.current = players;
@@ -114,6 +119,10 @@ export default function RoomPageClient() {
   useEffect(() => {
     currentTurnTypeRef.current = currentTurnType;
   }, [currentTurnType]);
+
+  useEffect(() => {
+    waitroomMessagesRef.current = waitroomMessages;
+  }, [waitroomMessages]);
 
   // Remonte le nombre de joueurs au layout (TopBar)
   useEffect(() => {
@@ -168,6 +177,7 @@ export default function RoomPageClient() {
           setCurrentTurnType(msg.currentTurnType ?? "drawing");
           if (msg.order) setGameOrder(msg.order);
           if (msg.activePeerId) setActivePeerId(msg.activePeerId);
+          if (msg.waitroomMessages) setWaitroomMessages(msg.waitroomMessages);
           if (msg.order) setGameStarted(true);
           break;
         case "PLAYER_JOINED":
@@ -194,7 +204,9 @@ export default function RoomPageClient() {
 
           const turn = msg.turn;
 
-          setGameHistory((prev) => [...prev, turn]);
+          const updatedHistory = [...historyRef.current, turn];
+          historyRef.current = updatedHistory;
+          setGameHistory(updatedHistory);
           setLastInput(turn.content);
           setLastTurnType(turn.type);
 
@@ -234,11 +246,23 @@ export default function RoomPageClient() {
               lastInput: turn.content,
               lastTurnType: turn.type,
               nextTurnType,
+              history: updatedHistory,
             });
           }
           break;
         case "GAME_END":
           setGameEnded(true);
+          break;
+        case "WAITROOM_MESSAGE":
+          setWaitroomMessages((prev) => {
+            if (prev.some((m) => m.id === msg.message.id)) return prev;
+            const updated = [...prev, msg.message];
+            waitroomMessagesRef.current = updated;
+            return updated;
+          });
+          if (isHost) {
+            broadcast(msg, from);
+          }
           break;
       }
     },
@@ -304,6 +328,7 @@ export default function RoomPageClient() {
             currentTurnType: currentTurnTypeRef.current,
             order: orderRef.current,
             activePeerId,
+            waitroomMessages: waitroomMessagesRef.current,
           });
           broadcast({ type: "PLAYER_JOINED", peerId: conn.peer }, conn.peer);
         });
@@ -434,6 +459,41 @@ export default function RoomPageClient() {
     }
   }
 
+  const sendWaitroomMessage = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+
+      const message: ChatMessage = {
+        id: `${peerId ?? "peer"}_${Date.now()}`,
+        text: trimmed,
+        sender: peerId ?? undefined,
+      };
+
+      setWaitroomMessages((prev) => {
+        if (prev.some((m) => m.id === message.id)) return prev;
+        const updated = [...prev, message];
+        waitroomMessagesRef.current = updated;
+        return updated;
+      });
+
+      if (isHost) {
+        broadcast({ type: "WAITROOM_MESSAGE", message });
+        return;
+      }
+
+      const target =
+        peer?.connections[hostPeerId!]?.find((c: any) => c.open) ?? null;
+      if (target) {
+        target.send({ type: "WAITROOM_MESSAGE", message });
+      } else if (peer && hostPeerId) {
+        const conn = peer.connect(hostPeerId);
+        conn.on("open", () => conn.send({ type: "WAITROOM_MESSAGE", message }));
+      }
+    },
+    [broadcast, hostPeerId, isHost, peer, peerId]
+  );
+
   // Derived flags
   const isActive = peerId === activePeerId;
   const hasPlayed = localHasPlayed || playersState.find((p) => p.player === peerId)?.as_played;
@@ -476,14 +536,8 @@ export default function RoomPageClient() {
           id="waitroom_overlay"
           className=""
           items={historyItems}
-          initialChats={[]}
           messages={waitroomMessages}
-          onSendMessage={(text) =>
-            setWaitroomMessages((prev) => [
-              ...prev,
-              { id: `chat_${prev.length + 1}`, text },
-            ])
-          }
+          onSendMessage={sendWaitroomMessage}
           fullPage
         />
       </div>
@@ -625,7 +679,8 @@ export default function RoomPageClient() {
           id="waitroom_overlay"
           className=""
           items={historyItems}
-          initialChats={[]}
+          messages={waitroomMessages}
+          onSendMessage={sendWaitroomMessage}
         />
       )}
     </div>
