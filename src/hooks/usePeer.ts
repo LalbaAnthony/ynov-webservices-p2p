@@ -1,25 +1,25 @@
+"use client";
+
 import Peer from "peerjs";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 export function usePeer() {
-  const [peerId] = useState(() => "p-" + Math.random().toString(36).slice(2, 10));
-  const peerRef = useRef<Peer | null>(null);
-  const [connections, setConnections] = useState({});
+  const [peer, setPeer] = useState<Peer | null>(null);
+  const [peerId, setPeerId] = useState<string>("");
 
   useEffect(() => {
-    const peer = new Peer(peerId, {
-      host: 'localhost',
-      port: 9000,
-      path: '/peerjs'
-    });
-    peerRef.current = peer;
+    const p = new Peer();
 
-    peer.on("connection", conn => {
-      conn.on("data", d => console.log("data", d));
+    p.on("open", (id) => {
+      setPeerId(id);
     });
 
-    return () => peer.destroy();
+    setPeer(p);
+
+    return () => {
+      p.destroy();
+    };
   }, []);
 
-  return { peerId, peer: peerRef.current };
+  return { peer, peerId };
 }
