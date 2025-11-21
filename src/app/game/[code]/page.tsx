@@ -67,6 +67,8 @@ export default function RoomPageClient() {
   const [activePeerId, setActivePeerId] = useState<string | null>(null);
   const [gameHistory, setGameHistory] = useState<GameTurn[]>([]);
   const [lastInput, setLastInput] = useState<string | null>(null);
+  const [lastTurnType, setLastTurnType] = useState<TurnType | null>(null);
+  const [currentTurnType, setCurrentTurnType] = useState<TurnType>("drawing");
   const [gameEnded, setGameEnded] = useState(false);
 
   // Entree utilisateur
@@ -81,6 +83,8 @@ export default function RoomPageClient() {
   const historyRef = useRef<GameTurn[]>([]);
   const lastInputRef = useRef<string | null>(null);
   const orderRef = useRef<string[]>([]);
+  const lastTurnTypeRef = useRef<TurnType | null>(null);
+  const currentTurnTypeRef = useRef<TurnType>("drawing");
 
   useEffect(() => {
     playersRef.current = players;
@@ -97,6 +101,14 @@ export default function RoomPageClient() {
   useEffect(() => {
     orderRef.current = gameOrder;
   }, [gameOrder]);
+
+  useEffect(() => {
+    lastTurnTypeRef.current = lastTurnType;
+  }, [lastTurnType]);
+
+  useEffect(() => {
+    currentTurnTypeRef.current = currentTurnType;
+  }, [currentTurnType]);
 
   // Remonte le nombre de joueurs au layout (TopBar)
   useEffect(() => {
@@ -147,6 +159,8 @@ export default function RoomPageClient() {
           setPlayers(msg.players);
           setGameHistory(msg.history);
           setLastInput(msg.lastInput);
+          setLastTurnType(msg.lastTurnType ?? msg.history.at(-1)?.type ?? null);
+          setCurrentTurnType(msg.currentTurnType ?? "drawing");
           if (msg.order) setGameOrder(msg.order);
           if (msg.activePeerId) setActivePeerId(msg.activePeerId);
           if (msg.order) setGameStarted(true);
@@ -158,10 +172,13 @@ export default function RoomPageClient() {
           setGameStarted(true);
           setGameOrder(msg.order);
           setActivePeerId(msg.order[0]);
+          setCurrentTurnType("drawing");
           break;
         case "NEXT_TURN":
           setActivePeerId(msg.activePeerId);
           setLastInput(msg.lastInput);
+          setLastTurnType(msg.lastTurnType);
+          setCurrentTurnType(msg.nextTurnType);
           break;
         case "PLAYER_FINISHED":
           // Hote uniquement
@@ -171,6 +188,7 @@ export default function RoomPageClient() {
 
           setGameHistory((prev) => [...prev, turn]);
           setLastInput(turn.content);
+          setLastTurnType(turn.type);
 
           let allPlayed = false;
 
@@ -193,8 +211,10 @@ export default function RoomPageClient() {
           }
           const nextIndex = (currentIndex + 1) % orderRef.current.length;
           const nextPeerId = orderRef.current[nextIndex];
+          const nextTurnType: TurnType = turn.type === "drawing" ? "text" : "drawing";
 
           setActivePeerId(nextPeerId);
+          setCurrentTurnType(nextTurnType);
 
           if (allPlayed) {
             setGameEnded(true);
@@ -204,6 +224,8 @@ export default function RoomPageClient() {
               type: "NEXT_TURN",
               activePeerId: nextPeerId,
               lastInput: turn.content,
+              lastTurnType: turn.type,
+              nextTurnType,
             });
           }
           break;
@@ -270,6 +292,8 @@ export default function RoomPageClient() {
             players: playersRef.current,
             history: historyRef.current,
             lastInput: lastInputRef.current,
+            lastTurnType: lastTurnTypeRef.current,
+            currentTurnType: currentTurnTypeRef.current,
             order: orderRef.current,
             activePeerId,
           });
@@ -305,6 +329,8 @@ export default function RoomPageClient() {
     setGameOrder(order);
     setActivePeerId(order[0]);
     setGameStarted(true);
+    setCurrentTurnType("drawing");
+    setLastTurnType(null);
 
     const initialState = order.map((p) => ({
       player: p,
@@ -320,15 +346,23 @@ export default function RoomPageClient() {
   function submitTurn() {
     if (!activePeerId || gameEnded) return;
 
-    // Pour ce scenario : on envoie toujours un dessin (dataURL).
-    if (!drawingData) return;
+    let contentToSend: string | null = null;
+    let turnType: TurnType = currentTurnType;
+
+    if (currentTurnType === "drawing") {
+      if (!drawingData) return;
+      contentToSend = drawingData;
+    } else {
+      if (!currentInput.trim()) return;
+      contentToSend = currentInput.trim();
+    }
 
     const playerData = playersState.find((p) => p.player === peerId);
     if (playerData?.as_played) return;
 
     const turn: GameTurn = {
-      type: "drawing",
-      content: drawingData,
+      type: turnType,
+      content: contentToSend,
       player: peerId!,
     };
 
@@ -351,6 +385,7 @@ export default function RoomPageClient() {
 
       setGameHistory((prev) => [...prev, turn]);
       setLastInput(turn.content);
+      setLastTurnType(turn.type);
 
       const currentIndex = orderRef.current.indexOf(activePeerId);
       if (currentIndex === -1) {
@@ -359,7 +394,9 @@ export default function RoomPageClient() {
       }
       const nextIndex = (currentIndex + 1) % orderRef.current.length;
       const nextPeerId = orderRef.current[nextIndex];
+      const nextTurnType: TurnType = turn.type === "drawing" ? "text" : "drawing";
       setActivePeerId(nextPeerId);
+      setCurrentTurnType(nextTurnType);
 
       if (allPlayed) {
         setGameEnded(true);
@@ -371,6 +408,8 @@ export default function RoomPageClient() {
         type: "NEXT_TURN",
         activePeerId: nextPeerId,
         lastInput: turn.content,
+        lastTurnType: turn.type,
+        nextTurnType,
       });
     } else {
       const existing = peer?.connections[hostPeerId!]?.find((c) => c.open) ?? null;
@@ -442,8 +481,20 @@ export default function RoomPageClient() {
       <ul className="mt-2">
         {gameHistory.map((t, i) => (
           <li key={i} className="text-sm">
-            **{t.player}** ({t.type}):{" "}
-            {t.type === "text" ? t.content : "[dessin]"}
+            <div className="flex flex-col gap-2">
+              <span>
+                **{t.player}** ({t.type}):
+              </span>
+              {t.type === "text" ? (
+                <span>{t.content}</span>
+              ) : (
+                <img
+                  src={t.content}
+                  alt={`Dessin de ${t.player}`}
+                  className="max-w-md rounded border border-zinc-200"
+                />
+              )}
+            </div>
           </li>
         ))}
       </ul>
@@ -459,29 +510,65 @@ export default function RoomPageClient() {
           <h3 className="text-xl font-semibold mb-3">Votre Tour</h3>
 
           {isActive && !hasPlayed ? (
-            <div className="space-y-2">
-              <p className="mb-2 italic text-gray-700">
-                {lastInput
-                  ? `Derniere entree : "${lastInput}"`
-                  : "C'est votre tour de commencer ! Dessinez."}
-              </p>
-              <FormComponent
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  submitTurn();
-                }}
-                renderField={() => (
-                  <DrawCanvas
-                    className="w-full"
-                    onChange={(data) => setDrawingData(data)}
-                    strokeColor="#2563eb"
-                    strokeWidth={4}
-                    backgroundColor="#ffffff"
+            <div className="space-y-3">
+              {currentTurnType === "drawing" ? (
+                <>
+                  <p className="italic text-gray-700">
+                    {lastInput
+                      ? lastTurnType === "text"
+                        ? `Derniere entree : "${lastInput}"`
+                        : "Derniere entree : un dessin"
+                      : "C'est votre tour de commencer ! Dessinez."}
+                  </p>
+                  <FormComponent
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      submitTurn();
+                    }}
+                    renderField={() => (
+                      <DrawCanvas
+                        className="w-full"
+                        onChange={(data) => setDrawingData(data)}
+                        strokeColor="#2563eb"
+                        strokeWidth={4}
+                        backgroundColor="#ffffff"
+                      />
+                    )}
+                    submitLabel="Valider le dessin"
+                    disabled={gameEnded}
                   />
-                )}
-                submitLabel="Valider le dessin"
-                disabled={gameEnded}
-              />
+                </>
+              ) : (
+                <>
+                  {lastTurnType === "drawing" && lastInput && (
+                    <div className="mb-2">
+                      <p className="italic text-gray-700 mb-1">Dessin à décrire :</p>
+                      <img
+                        src={lastInput}
+                        alt="Dessin à décrire"
+                        className="max-w-lg rounded border border-zinc-200"
+                      />
+                    </div>
+                  )}
+                  <FormComponent
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      submitTurn();
+                    }}
+                    renderField={() => (
+                      <textarea
+                        className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                        placeholder="Décris ce que tu vois..."
+                        value={currentInput}
+                        onChange={(e) => setCurrentInput(e.target.value)}
+                        rows={3}
+                      />
+                    )}
+                    submitLabel="Valider la description"
+                    disabled={gameEnded || !currentInput.trim()}
+                  />
+                </>
+              )}
             </div>
           ) : (
             <div className="text-gray-600">
