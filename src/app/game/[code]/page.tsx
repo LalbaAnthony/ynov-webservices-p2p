@@ -76,6 +76,7 @@ export default function RoomPageClient() {
   const [currentInput, setCurrentInput] = useState("");
   const [drawingData, setDrawingData] = useState<string | null>(null);
   const [showWaitroom, setShowWaitroom] = useState(false);
+  const [localHasPlayed, setLocalHasPlayed] = useState(false);
 
   // Host mini DB
   const [playersState, setPlayersState] = useState<PlayerState[]>([]);
@@ -370,6 +371,7 @@ export default function RoomPageClient() {
 
     setCurrentInput("");
     setDrawingData(null);
+    setLocalHasPlayed(true);
 
     if (isHost) {
       let allPlayed = false;
@@ -426,7 +428,7 @@ export default function RoomPageClient() {
 
   // Derived flags
   const isActive = peerId === activePeerId;
-  const hasPlayed = playersState.find((p) => p.player === peerId)?.as_played;
+  const hasPlayed = localHasPlayed || playersState.find((p) => p.player === peerId)?.as_played;
   const historyItems = gameHistory.map((t, idx) =>
     t.type === "drawing" ? (
       <div key={idx} className="flex flex-col gap-2">
@@ -457,6 +459,21 @@ export default function RoomPageClient() {
   // ------------------ RENDER ------------------
 
   if (!code) return <div>Chargement de la room...</div>;
+
+  if (showWaitroom) {
+    return (
+      <div className="p-6 space-y-4">
+        <TopBar roomId={code} nbPlayers={players.length} nbSeconds={0} />
+        <Waitroom
+          id="waitroom_overlay"
+          className=""
+          items={historyItems}
+          initialChats={[]}
+          fullPage
+        />
+      </div>
+    );
+  }
 
   if (!gameStarted)
     return (

@@ -26,6 +26,7 @@ type WaitroomProps = {
   id?: string;
   items?: React.ReactNode[];
   initialChats?: { id: string; text: string }[];
+  fullPage?: boolean;
 };
 
 // Composant plein écran (overlay) affichable depuis la page principale.
@@ -34,6 +35,7 @@ export default function Waitroom({
   id = "",
   items = defaultItems,
   initialChats = defaultChats,
+  fullPage = false,
 }: WaitroomProps) {
   const [messages, setMessages] = useState(initialChats);
   const [draft, setDraft] = useState("");
@@ -46,12 +48,17 @@ export default function Waitroom({
     setDraft("");
   };
 
+  const containerClass = fullPage
+    ? `flex min-h-screen w-full items-start justify-center bg-transparent p-0 ${className}`.trim()
+    : `fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur p-6 ${className}`.trim();
+
+  const panelClass = fullPage
+    ? "flex w-full flex-col border-0 bg-transparent p-0"
+    : "flex w-full max-w-6xl flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900";
+
   return (
-    <div
-      id={id || undefined}
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur p-6 ${className}`.trim()}
-    >
-      <div className="flex w-full max-w-6xl flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+    <div id={id || undefined} className={containerClass}>
+      <div className={panelClass}>
         <Mattrix
           rows={1}
           cols={2}
