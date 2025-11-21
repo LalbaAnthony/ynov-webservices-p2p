@@ -7,6 +7,7 @@ import TopBar from "../../components/top_bar/top_bar";
 import { TimerContext } from "../layout";
 import FormComponent from "../../components/form_component/form";
 import DrawCanvas from "../../components/draw_canvas/draw_canvas";
+import Waitroom from "../../components/waitroom/room";
 
 // --- TYPES DU JEU ---
 
@@ -74,6 +75,7 @@ export default function RoomPageClient() {
   // Entree utilisateur
   const [currentInput, setCurrentInput] = useState("");
   const [drawingData, setDrawingData] = useState<string | null>(null);
+  const [showWaitroom, setShowWaitroom] = useState(false);
 
   // Host mini DB
   const [playersState, setPlayersState] = useState<PlayerState[]>([]);
@@ -422,6 +424,36 @@ export default function RoomPageClient() {
     }
   }
 
+  // Derived flags
+  const isActive = peerId === activePeerId;
+  const hasPlayed = playersState.find((p) => p.player === peerId)?.as_played;
+  const historyItems = gameHistory.map((t, idx) =>
+    t.type === "drawing" ? (
+      <div key={idx} className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          {t.player} (dessin)
+        </span>
+        <img
+          src={t.content}
+          alt={`Dessin ${idx + 1}`}
+          className="max-w-md rounded border border-zinc-200 dark:border-zinc-800"
+        />
+      </div>
+    ) : (
+      <div key={idx} className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          {t.player} (texte)
+        </span>
+        <span className="text-sm">{t.content}</span>
+      </div>
+    )
+  );
+
+  // Auto-affiche la waitroom dès qu'on a joué et qu'on n'est plus actif
+  useEffect(() => {
+    setShowWaitroom(hasPlayed && !isActive);
+  }, [hasPlayed, isActive]);
+
   // ------------------ RENDER ------------------
 
   if (!code) return <div>Chargement de la room...</div>;
@@ -456,8 +488,6 @@ export default function RoomPageClient() {
       </div>
     );
 
-  const isActive = peerId === activePeerId;
-  const hasPlayed = playersState.find((p) => p.player === peerId)?.as_played;
 
   return (
     <div className="p-10 space-y-6">
@@ -578,6 +608,15 @@ export default function RoomPageClient() {
             </div>
           )}
         </div>
+      )}
+
+      {hasPlayed && !isActive && showWaitroom && (
+        <Waitroom
+          id="waitroom_overlay"
+          className=""
+          items={historyItems}
+          initialChats={[]}
+        />
       )}
     </div>
   );
