@@ -30,6 +30,7 @@ type Message =
       lastInput: string;
       lastTurnType: TurnType;
       nextTurnType: TurnType;
+      history?: GameTurn[];
     }
   | { type: "PLAYER_FINISHED"; turn: GameTurn }
   | { type: "GAME_END" };
@@ -77,6 +78,7 @@ export default function RoomPageClient() {
   const [drawingData, setDrawingData] = useState<string | null>(null);
   const [showWaitroom, setShowWaitroom] = useState(false);
   const [localHasPlayed, setLocalHasPlayed] = useState(false);
+  const [waitroomMessages, setWaitroomMessages] = useState<{ id: string; text: string }[]>([]);
 
   // Host mini DB
   const [playersState, setPlayersState] = useState<PlayerState[]>([]);
@@ -182,6 +184,9 @@ export default function RoomPageClient() {
           setLastInput(msg.lastInput);
           setLastTurnType(msg.lastTurnType);
           setCurrentTurnType(msg.nextTurnType);
+          if (msg.history) {
+            setGameHistory(msg.history);
+          }
           break;
         case "PLAYER_FINISHED":
           // Hote uniquement
@@ -387,7 +392,9 @@ export default function RoomPageClient() {
         return newState;
       });
 
-      setGameHistory((prev) => [...prev, turn]);
+      const updatedHistory = [...historyRef.current, turn];
+      historyRef.current = updatedHistory;
+      setGameHistory(updatedHistory);
       setLastInput(turn.content);
       setLastTurnType(turn.type);
 
@@ -414,6 +421,7 @@ export default function RoomPageClient() {
         lastInput: turn.content,
         lastTurnType: turn.type,
         nextTurnType,
+        history: updatedHistory,
       });
     } else {
       const existing = peer?.connections[hostPeerId!]?.find((c) => c.open) ?? null;
@@ -469,13 +477,20 @@ export default function RoomPageClient() {
           className=""
           items={historyItems}
           initialChats={[]}
+          messages={waitroomMessages}
+          onSendMessage={(text) =>
+            setWaitroomMessages((prev) => [
+              ...prev,
+              { id: `chat_${prev.length + 1}`, text },
+            ])
+          }
           fullPage
         />
       </div>
     );
   }
 
-  if (!gameStarted)
+  if (!gameStarted && !showWaitroom)
     return (
       <div className="p-10 space-y-6">
         <h1 className="text-3xl font-bold">Room {code}</h1>
@@ -520,28 +535,6 @@ export default function RoomPageClient() {
             className={p === activePeerId ? "font-bold text-blue-600" : ""}
           >
             {index + 1}. {p} {p === activePeerId && "(ACTIF)"}
-          </li>
-        ))}
-      </ul>
-
-      <h2 className="text-xl mt-6">Historique des tours :</h2>
-      <ul className="mt-2">
-        {gameHistory.map((t, i) => (
-          <li key={i} className="text-sm">
-            <div className="flex flex-col gap-2">
-              <span>
-                **{t.player}** ({t.type}):
-              </span>
-              {t.type === "text" ? (
-                <span>{t.content}</span>
-              ) : (
-                <img
-                  src={t.content}
-                  alt={`Dessin de ${t.player}`}
-                  className="max-w-md rounded border border-zinc-200"
-                />
-              )}
-            </div>
           </li>
         ))}
       </ul>

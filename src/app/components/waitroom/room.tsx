@@ -27,6 +27,8 @@ type WaitroomProps = {
   items?: React.ReactNode[];
   initialChats?: { id: string; text: string }[];
   fullPage?: boolean;
+  messages?: { id: string; text: string }[];
+  onSendMessage?: (text: string) => void;
 };
 
 // Composant plein écran (overlay) affichable depuis la page principale.
@@ -36,15 +38,22 @@ export default function Waitroom({
   items = defaultItems,
   initialChats = defaultChats,
   fullPage = false,
+  messages,
+  onSendMessage,
 }: WaitroomProps) {
-  const [messages, setMessages] = useState(initialChats);
+  const [localMessages, setLocalMessages] = useState(initialChats);
   const [draft, setDraft] = useState("");
 
   const handleSend = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!draft.trim()) return;
-    const nextId = `chat_${messages.length + 1}`;
-    setMessages((prev) => [...prev, { id: nextId, text: draft.trim() }]);
+    const text = draft.trim();
+    const nextId = `chat_${(messages ?? localMessages).length + 1}`;
+    if (onSendMessage) {
+      onSendMessage(text);
+    } else {
+      setLocalMessages((prev) => [...prev, { id: nextId, text }]);
+    }
     setDraft("");
   };
 
@@ -55,6 +64,8 @@ export default function Waitroom({
   const panelClass = fullPage
     ? "flex w-full flex-col border-0 bg-transparent p-0"
     : "flex w-full max-w-6xl flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900";
+
+  const chatSource = messages ?? localMessages;
 
   return (
     <div id={id || undefined} className={containerClass}>
@@ -74,13 +85,13 @@ export default function Waitroom({
             if (r === 0 && c === 1) {
               return (
                 <div id="chats" className="h-full">
-                  <History
-                    id="chat_history"
-                    className="bg-white dark:bg-zinc-900"
-                    items={messages.map((item) => (
-                      <Chat key={item.id} id={item.id} text={item.text} />
-                    ))}
-                  />
+                <History
+                  id="chat_history"
+                  className="bg-white dark:bg-zinc-900"
+                  items={chatSource.map((item, idx) => (
+                    <Chat key={item.id ?? idx} id={item.id} text={item.text} />
+                  ))}
+                />
                   <form
                     id="chat_form"
                     className="mt-4 flex gap-2"
