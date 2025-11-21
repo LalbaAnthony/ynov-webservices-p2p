@@ -21,8 +21,7 @@ export default function ComponentTemplate({
 }: ComponentTemplateProps) {
   const [active, setActive] = useState(false);
 
-  const base =
-    "w-full rounded-xl border border-zinc-200 bg-white p-4 text-zinc-900 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50";
+  const base = "w-full";
 
   // Boucle pour créer une grille rows x cols.
   const grid = Array.from({ length: rows }, (_, r) =>
@@ -43,7 +42,7 @@ export default function ComponentTemplate({
           row.map((cell) => (
             <div
               key={`${cell.r}-${cell.c}`}
-              className="flex h-full w-full flex-col items-stretch justify-stretch rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-3 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-100"
+              className="flex h-full w-full flex-col items-center justify-center p-2 text-sm"
             >
               <div className="h-full w-full">
                 {renderCell ? renderCell(cell.r, cell.c) : `(${cell.r + 1}, ${cell.c + 1})`}

@@ -46,7 +46,7 @@ export default function GameLayout({
 
   return (
     <TimerContext.Provider value={{ time, start, stop, reset, playersCount, setPlayersCount }}>
-      <header className="p-4 border-b flex flex-row gap-2 justify-between items-center">
+      <header className="flex flex-row items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600">
         <TopBar roomId={code} nbPlayers={playersCount} nbSeconds={time} />
       </header>
 
