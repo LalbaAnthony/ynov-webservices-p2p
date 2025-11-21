@@ -5,6 +5,8 @@ import { useEffect, useState, useCallback, useRef, useContext } from "react";
 import { useParams } from "next/navigation";
 import TopBar from "../../components/top_bar/top_bar";
 import { TimerContext } from "../layout";
+import FormComponent from "../../components/form_component/form";
+import DrawCanvas from "../../components/draw_canvas/draw_canvas";
 
 // --- TYPES DU JEU ---
 
@@ -61,6 +63,7 @@ export default function RoomPageClient() {
 
   // Entree utilisateur
   const [currentInput, setCurrentInput] = useState("");
+  const [drawingData, setDrawingData] = useState<string | null>(null);
 
   // Host mini DB
   const [playersState, setPlayersState] = useState<PlayerState[]>([]);
@@ -307,18 +310,22 @@ export default function RoomPageClient() {
 
   // ------------------ HANDLE PLAYER ACTION ------------------
   function submitTurn() {
-    if (!currentInput || !activePeerId || gameEnded) return;
+    if (!activePeerId || gameEnded) return;
+
+    // Pour ce scenario : on envoie toujours un dessin (dataURL).
+    if (!drawingData) return;
 
     const playerData = playersState.find((p) => p.player === peerId);
     if (playerData?.as_played) return;
 
     const turn: GameTurn = {
-      type: "text",
-      content: currentInput,
+      type: "drawing",
+      content: drawingData,
       player: peerId!,
     };
 
     setCurrentInput("");
+    setDrawingData(null);
 
     if (isHost) {
       let allPlayed = false;
@@ -445,27 +452,29 @@ export default function RoomPageClient() {
           <h3 className="text-xl font-semibold mb-3">Votre Tour</h3>
 
           {isActive && !hasPlayed ? (
-            <div>
+            <div className="space-y-2">
               <p className="mb-2 italic text-gray-700">
                 {lastInput
                   ? `Derniere entree : "${lastInput}"`
-                  : "C'est votre tour de commencer ! Ecrivez une phrase."}
+                  : "C'est votre tour de commencer ! Dessinez."}
               </p>
-              <input
-                type="text"
-                value={currentInput}
-                onChange={(e) => setCurrentInput(e.target.value)}
-                className="border px-3 py-2 w-full max-w-sm rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Entrez votre phrase/reponse"
+              <FormComponent
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitTurn();
+                }}
+                renderField={() => (
+                  <DrawCanvas
+                    className="w-full"
+                    onChange={(data) => setDrawingData(data)}
+                    strokeColor="#2563eb"
+                    strokeWidth={4}
+                    backgroundColor="#ffffff"
+                  />
+                )}
+                submitLabel="Valider le dessin"
                 disabled={gameEnded}
               />
-              <button
-                className="ml-2 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors disabled:bg-gray-400"
-                onClick={submitTurn}
-                disabled={!currentInput.trim() || gameEnded}
-              >
-                Valider le Tour
-              </button>
             </div>
           ) : (
             <div className="text-gray-600">
