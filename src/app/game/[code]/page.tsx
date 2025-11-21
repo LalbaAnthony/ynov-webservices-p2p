@@ -72,6 +72,8 @@ export default function RoomPageClient() {
   const [gameOrder, setGameOrder] = useState<string[]>([]);
   const [activePeerId, setActivePeerId] = useState<string | null>(null);
   const [gameHistory, setGameHistory] = useState<GameTurn[]>([]);
+  const TURN_DURATION = 30;
+  const [turnTimeLeft, setTurnTimeLeft] = useState(TURN_DURATION);
   const [lastInput, setLastInput] = useState<string | null>(null);
   const [lastTurnType, setLastTurnType] = useState<TurnType | null>(null);
   const [currentTurnType, setCurrentTurnType] = useState<TurnType>("drawing");
@@ -124,10 +126,41 @@ export default function RoomPageClient() {
     waitroomMessagesRef.current = waitroomMessages;
   }, [waitroomMessages]);
 
+  // Derived flags (placés tôt pour Ǹviter la TDZ dans les effets)
+  const isActive = peerId === activePeerId;
+  const hasPlayed =
+    localHasPlayed || playersState.find((p) => p.player === peerId)?.as_played;
+
   // Remonte le nombre de joueurs au layout (TopBar)
   useEffect(() => {
     timerCtx?.setPlayersCount(players.length);
   }, [players, timerCtx]);
+
+  // Minuteur par tour (30s par joueur)
+  useEffect(() => {
+    if (!activePeerId || gameEnded) return;
+
+    setTurnTimeLeft(TURN_DURATION);
+    timerCtx?.setTurnSeconds(TURN_DURATION);
+
+    const interval = setInterval(() => {
+      setTurnTimeLeft((prev) => {
+        const next = Math.max(prev - 1, 0);
+        timerCtx?.setTurnSeconds(next);
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activePeerId, gameEnded, currentTurnType, timerCtx]);
+
+  // Auto-validation à 0s
+  useEffect(() => {
+    if (!isActive || hasPlayed || gameEnded) return;
+    if (turnTimeLeft <= 0) {
+      submitTurn(true);
+    }
+  }, [turnTimeLeft, isActive, hasPlayed, gameEnded]);
 
   // Nettoyage PeerJS
   useEffect(() => {
@@ -376,18 +409,18 @@ export default function RoomPageClient() {
   }
 
   // ------------------ HANDLE PLAYER ACTION ------------------
-  function submitTurn() {
+  function submitTurn(forceTimeout = false) {
     if (!activePeerId || gameEnded) return;
 
     let contentToSend: string | null = null;
     let turnType: TurnType = currentTurnType;
 
     if (currentTurnType === "drawing") {
-      if (!drawingData) return;
-      contentToSend = drawingData;
+      if (!drawingData && !forceTimeout) return;
+      contentToSend = drawingData ?? "";
     } else {
-      if (!currentInput.trim()) return;
-      contentToSend = currentInput.trim();
+      if (!currentInput.trim() && !forceTimeout) return;
+      contentToSend = currentInput.trim() || "(aucune réponse)";
     }
 
     const playerData = playersState.find((p) => p.player === peerId);
@@ -494,9 +527,6 @@ export default function RoomPageClient() {
     [broadcast, hostPeerId, isHost, peer, peerId]
   );
 
-  // Derived flags
-  const isActive = peerId === activePeerId;
-  const hasPlayed = localHasPlayed || playersState.find((p) => p.player === peerId)?.as_played;
   const historyItems = gameHistory.map((t, idx) =>
     t.type === "drawing" ? (
       <div key={idx} className="flex flex-col gap-2">

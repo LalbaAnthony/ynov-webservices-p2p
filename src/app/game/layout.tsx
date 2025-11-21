@@ -11,6 +11,8 @@ export const TimerContext = createContext<{
   reset: () => void;
   playersCount: number;
   setPlayersCount: (n: number) => void;
+  turnSeconds: number;
+  setTurnSeconds: (n: number) => void;
 } | null>(null);
 
 export default function GameLayout({
@@ -24,6 +26,7 @@ export default function GameLayout({
   const [time, setTime] = useState(0); // time in seconds
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [playersCount, setPlayersCount] = useState(0);
+  const [turnSeconds, setTurnSeconds] = useState(30);
 
   const start = () => {
     if (intervalRef.current) return; // already running
@@ -45,9 +48,20 @@ export default function GameLayout({
   };
 
   return (
-    <TimerContext.Provider value={{ time, start, stop, reset, playersCount, setPlayersCount }}>
+    <TimerContext.Provider
+      value={{
+        time,
+        start,
+        stop,
+        reset,
+        playersCount,
+        setPlayersCount,
+        turnSeconds,
+        setTurnSeconds,
+      }}
+    >
       <header className="flex flex-row items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600">
-        <TopBar roomId={code} nbPlayers={playersCount} nbSeconds={time} />
+        <TopBar roomId={code} nbPlayers={playersCount} nbSeconds={turnSeconds} />
       </header>
 
       <main>{children}</main>

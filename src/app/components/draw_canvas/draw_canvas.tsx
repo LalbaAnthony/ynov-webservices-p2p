@@ -43,9 +43,9 @@ export default function DrawCanvas({
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     ctx.scale(dpr, dpr);
-
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, width, height);
+    if (onChange) onChange(canvas.toDataURL("image/png"));
   }, [width, height, backgroundColor]);
 
   useEffect(() => {
